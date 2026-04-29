@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "stitch": {
+      "command": "npx -y @_davideast/stitch-mcp proxy --env",
+      "args": []
+    }
+  }
+}
