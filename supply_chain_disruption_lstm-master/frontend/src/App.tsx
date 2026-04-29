@@ -11,9 +11,20 @@ import type { Config, PredictionResponse, PredictionRequest } from './types';
 
 function App() {
   const [currentPage, setCurrentPage] = useState<'nexus' | 'intelligence'>('nexus');
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [theme]);
+
   const [config, setConfig] = useState<Config | null>(null);
   const [prediction, setPrediction] = useState<PredictionResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<PredictionRequest>({
     origin_city: 'Mumbai',
     destination_city: 'Delhi',
@@ -36,20 +47,13 @@ function App() {
         if (data.suppliers.length > 0) {
           setFormData(prev => ({ ...prev, supplier_name: data.suppliers[0] }));
         }
-      } catch (error) {
-        console.error('Failed to load config', error);
+      } catch (err) {
+        console.error('Failed to load config', err);
+        setError('Connection failed. Please ensure the backend is running.');
       }
     };
     fetchConfig();
   }, []);
-
-  useEffect(() => {
-    if (config) {
-      // Logic for predictions or other state updates
-    }
-  }, [config]);
-
-  // Removed animations for debugging visibility
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -59,12 +63,13 @@ function App() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
     try {
       const result = await predictDisruption(formData);
       setPrediction(result);
-      gsap.from('.prediction-content', { opacity: 0, scale: 0.95, duration: 0.5, ease: 'back.out(1.7)' });
-    } catch (error) {
-      console.error('Prediction failed', error);
+    } catch (err) {
+      console.error('Prediction failed', err);
+      setError('Analysis failed. Check backend connectivity.');
     } finally {
       setLoading(false);
     }
@@ -77,12 +82,13 @@ function App() {
         <Loader2 className="w-12 h-12 animate-spin text-blue-500 relative z-10" />
       </div>
       <span className="mt-8 tracking-[0.5em] text-[10px] text-blue-500 font-bold uppercase animate-pulse">Initializing Nexus Intelligence Layer...</span>
+      {error && <div className="mt-4 text-red-500 text-xs font-bold bg-red-500/10 px-4 py-2 rounded-lg border border-red-500/20">{error}</div>}
     </div>
   );
 
   return (
     <div className="h-screen w-screen bg-neutral-950 text-white overflow-hidden relative font-sans selection:bg-blue-500/30">
-      
+
       {/* Navigation */}
       <nav ref={navRef} className="absolute bottom-8 left-1/2 -translate-x-1/2 z-50 pointer-events-auto">
         <div className="flex items-center gap-1 p-1 bg-black/60 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl">
@@ -105,26 +111,35 @@ function App() {
 
       {/* Pages Container */}
       <div className="relative w-full h-full">
-        
+
         {/* Nexus Page */}
         <div className={`absolute inset-0 transition-all duration-1000 ease-in-out ${currentPage === 'nexus' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12 pointer-events-none'}`}>
-          
+
           {/* 3D Background */}
-          <div className="absolute inset-0 z-0">
+          <div className="absolute inset-0 z-0 pointer-events-auto">
             <Canvas shadows>
               <PerspectiveCamera makeDefault position={[0, -5, 10]} fov={40} />
-              <OrbitControls enablePan={false} maxDistance={20} minDistance={5} />
+              <OrbitControls 
+                enablePan={false} 
+                maxDistance={20} 
+                minDistance={5} 
+                autoRotate 
+                autoRotateSpeed={0.5}
+                enableDamping
+              />
               <MapScene 
                 cityCoords={config.city_coords} 
                 origin={formData.origin_city} 
                 destination={formData.destination_city} 
+                transportMode={formData.transport_mode}
+                theme={theme}
               />
             </Canvas>
           </div>
 
           {/* Overlay UI */}
           <div className="absolute inset-0 z-10 pointer-events-none flex flex-col">
-            
+
             <header ref={headerRef} className="p-6 pointer-events-auto bg-gradient-to-b from-black/80 to-transparent flex justify-between items-start">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-600 rounded-lg shadow-lg shadow-blue-600/20">
@@ -137,9 +152,14 @@ function App() {
               </div>
             </header>
 
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex-1 flex overflow-hidden pointer-events-none">
               <aside ref={sidebarRef} className="w-[400px] p-6 pointer-events-auto overflow-y-auto bg-black/40 backdrop-blur-xl border-r border-white/5 scrollbar-hide">
                 <form onSubmit={handleSubmit} className="space-y-6">
+                  {error && (
+                    <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 text-[10px] font-bold uppercase tracking-widest animate-pulse">
+                      Error: {error}
+                    </div>
+                  )}
                   <section className="space-y-4">
                     <div className="flex items-center gap-2 text-blue-400 font-bold text-xs uppercase tracking-widest">
                       <MapPin className="w-4 h-4" />
@@ -209,16 +229,15 @@ function App() {
                   </button>
                 </form>
               </aside>
-              <main className="flex-1 p-6 flex flex-col justify-center items-end relative">
+              <main className="flex-1 p-6 flex flex-col justify-center items-end relative pointer-events-none z-20">      
                 {prediction && (
                   <div className="w-[450px] prediction-content pointer-events-auto overflow-y-auto max-h-[calc(100vh-180px)] scrollbar-hide pr-2">
-                    <PredictionPanel prediction={prediction} />
+                    <PredictionPanel key={prediction.disruption_probability + prediction.expected_delivery_date} prediction={prediction} transportMode={formData.transport_mode} />
                   </div>
                 )}
               </main>
             </div>
-
-            <footer className="p-4 px-6 border-t border-white/5 bg-black/60 backdrop-blur-md flex justify-between items-center">
+            <footer className="p-4 px-6 border-t border-white/5 bg-black/60 backdrop-blur-md flex justify-between items-center pointer-events-auto">
               <div className="flex gap-8">
                 <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /><span className="text-[10px] text-white/40 font-mono uppercase">SYSTEM STATUS: NOMINAL</span></div>
                 <div className="flex items-center gap-2"><Truck className="w-3 h-3 text-blue-500" /><span className="text-[10px] text-white/40 font-mono uppercase">ACTIVE MODELS: XGB/LSTM/ISO</span></div>
@@ -230,7 +249,7 @@ function App() {
 
         {/* Intelligence Page */}
         <div className={`absolute inset-0 transition-all duration-1000 ease-in-out ${currentPage === 'intelligence' ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-12 pointer-events-none'}`}>
-          <IntelligencePage />
+          <IntelligencePage theme={theme} />
         </div>
 
       </div>

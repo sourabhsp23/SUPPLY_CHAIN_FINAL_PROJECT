@@ -1,3 +1,12 @@
+---
+title: Supply Chain Prediction
+emoji: 🚚
+colorFrom: blue
+colorTo: green
+sdk: docker
+pinned: false
+---
+
 # 🚚 Supply Chain Disruption Prediction System (India)
 
 [![React 19](https://img.shields.io/badge/React-19-blue.svg)](https://react.dev/)

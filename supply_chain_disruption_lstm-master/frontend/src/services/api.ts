@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type { Config, PredictionRequest, PredictionResponse } from '../types';
 
-const API_BASE_URL = 'http://localhost:8009';
+const API_BASE_URL = import.meta.env.MODE === 'production' ? '' : 'http://localhost:8009';
 
 const api = axios.create({
   baseURL: API_BASE_URL,

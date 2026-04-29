@@ -17,6 +17,8 @@ from datetime import datetime
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from tensorflow.keras.models import load_model
 
@@ -256,7 +258,9 @@ def load_assets():
 # --- Routes ---
 @app.get("/")
 def read_root():
-    return {"status": "ok", "message": "Supply Chain Disruption API is running"}
+    if os.path.exists("static/index.html"):
+        return FileResponse("static/index.html")
+    return {"status": "ok", "message": "API is running (frontend not found)"}
 
 @app.get("/api/config")
 def get_config():
@@ -382,6 +386,21 @@ def predict(req: PredictionRequest):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# --- Static File Serving (Deployment) ---
+if os.path.exists("static"):
+    app.mount("/assets", StaticFiles(directory="static/assets"), name="assets")
+
+@app.get("/{full_path:path}")
+async def catch_all(full_path: str):
+    # If the file exists in static, serve it
+    file_path = os.path.join("static", full_path)
+    if os.path.isfile(file_path):
+        return FileResponse(file_path)
+    # Otherwise, serve index.html for SPA routing
+    if os.path.exists("static/index.html"):
+        return FileResponse("static/index.html")
+    return {"error": "Not Found"}
 
 if __name__ == "__main__":
     import uvicorn
